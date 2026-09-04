@@ -38,14 +38,14 @@ Connect the Vercel project to the same GitHub repository and branch. A commit pu
 ## Save flow
 
 1. The authenticated admin loads the latest `data/site.json` and its Git blob SHA from GitHub through the server API.
-2. Every form edit stays only in React draft state. Input changes, blur events, image-path edits, and discard actions make no GitHub calls.
-3. **Save changes** sends the complete desired model and the loaded blob SHA to `POST /api/admin/save`.
+2. Every form edit stays only in React draft state. Selected replacement images remain as browser `File` objects and use local object-URL previews. Input changes, blur events, image selection, and discard actions make no GitHub calls.
+3. **Save changes** sends one multipart request containing the complete desired model, the loaded blob SHA, and all pending images to `POST /api/admin/save`.
 4. The server revalidates the session and complete model, then checks that the GitHub blob SHA is still current.
-5. The Git Data API creates a blob, one tree, one commit, and updates the branch ref once.
+5. The Git Data API creates the content and image blobs, one tree, one commit, and updates the branch ref once. Replacement images are stored under `public/images/admin/`; an older admin-uploaded file is removed in that same tree if its extension changed.
 
 Therefore, **one Save creates one Git commit**, containing the complete content update, and triggers at most one Vercel deployment. If another commit changed the content first, the API returns `409 Conflict`; refresh the editor before retrying so newer work is not overwritten.
 
-The current demo edits existing image paths/URLs; it does not provide file uploads. If uploads are added later, their blobs must be included in the same Git tree and commit rather than using repeated Contents API updates.
+Image replacements accept JPEG, PNG, WebP, and GIF files up to 3 MB each and 4 MB total per Save. The server derives repository paths from validated section IDs and media types rather than trusting browser filenames.
 
 ## Security
 

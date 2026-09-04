@@ -75,6 +75,7 @@ footer { margin: 0 5vw; padding: 32px 0 48px; border-top: 1px solid var(--line);
 .muted { color: var(--muted); line-height: 1.6; }
 .login-form, .editor-card { display: grid; gap: 18px; }
 label { display: grid; gap: 8px; font-size: .85rem; font-weight: 700; }
+label small { color: var(--muted); font-weight: 400; line-height: 1.4; }
 input, textarea { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 12px 13px; background: #fff; color: var(--ink); }
 textarea { min-height: 94px; resize: vertical; }
 .form-error { color: #9b2f20; margin: 0; }

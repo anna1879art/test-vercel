@@ -3,6 +3,7 @@ import { validateSiteContent, type SiteContent } from '../app/content';
 
 const API = 'https://api.github.com';
 type GithubConfig = { token: string; owner: string; repo: string; branch: string; path: string };
+export type PendingImage = { sectionId: string; path: string; bytes: Buffer };
 
 class GithubApiError extends Error {
   constructor(public status: number, message: string) { super(message); }
@@ -40,7 +41,7 @@ export async function readSiteFromGithub(): Promise<{ data: SiteContent; version
   return { data, version: file.sha };
 }
 
-export async function saveSiteToGithub(data: SiteContent, expectedVersion: string) {
+export async function saveSiteToGithub(data: SiteContent, expectedVersion: string, images: PendingImage[] = []) {
   const { owner, repo, branch, path } = config();
   const prefix = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`;
   const current = await readSiteFromGithub();
@@ -48,7 +49,25 @@ export async function saveSiteToGithub(data: SiteContent, expectedVersion: strin
   const ref = await github<{ object: { sha: string } }>(`${prefix}/git/ref/heads/${encodePath(branch)}`);
   const commit = await github<{ tree: { sha: string } }>(`${prefix}/git/commits/${ref.object.sha}`);
   const blob = await github<{ sha: string }>(`${prefix}/git/blobs`, { method: 'POST', body: JSON.stringify({ content: `${JSON.stringify(data, null, 2)}\n`, encoding: 'utf-8' }) });
-  const tree = await github<{ sha: string }>(`${prefix}/git/trees`, { method: 'POST', body: JSON.stringify({ base_tree: commit.tree.sha, tree: [{ path, mode: '100644', type: 'blob', sha: blob.sha }] }) });
+  const imageBlobs = await Promise.all(images.map(async (image) => ({
+    ...image,
+    sha: (await github<{ sha: string }>(`${prefix}/git/blobs`, { method: 'POST', body: JSON.stringify({ content: image.bytes.toString('base64'), encoding: 'base64' }) })).sha,
+  })));
+  const oldById = new Map(current.data.sections.map((section) => [section.id, section.image]));
+  const deletedPaths = new Set<string>();
+  const treeItems: Array<{ path: string; mode: '100644'; type: 'blob'; sha: string | null }> = [
+    { path, mode: '100644', type: 'blob', sha: blob.sha },
+    ...imageBlobs.map((image) => ({ path: image.path, mode: '100644' as const, type: 'blob' as const, sha: image.sha })),
+  ];
+  for (const image of images) {
+    const oldImage = oldById.get(image.sectionId);
+    const oldPath = oldImage?.startsWith('/images/admin/') ? `public${oldImage}` : null;
+    if (oldPath && oldPath !== image.path && !deletedPaths.has(oldPath)) {
+      treeItems.push({ path: oldPath, mode: '100644', type: 'blob', sha: null });
+      deletedPaths.add(oldPath);
+    }
+  }
+  const tree = await github<{ sha: string }>(`${prefix}/git/trees`, { method: 'POST', body: JSON.stringify({ base_tree: commit.tree.sha, tree: treeItems }) });
   const newCommit = await github<{ sha: string }>(`${prefix}/git/commits`, { method: 'POST', body: JSON.stringify({ message: 'Update site content from admin', tree: tree.sha, parents: [ref.object.sha] }) });
   try {
     await github(`${prefix}/git/refs/heads/${encodePath(branch)}`, { method: 'PATCH', body: JSON.stringify({ sha: newCommit.sha, force: false }) });
