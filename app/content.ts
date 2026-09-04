@@ -7,7 +7,7 @@ export type SiteContent = {
 
 export const DEFAULT_CONTENT: SiteContent = {
   brand: 'Anna Candle Studio',
-  headline: 'Свечи как маленькие арт-объекты ?',
+  headline: '? Свечи как маленькие арт-объекты',
   intro: 'Тестовая одностраничная визитка для проверки GitHub → Vercel → static export → hosting.',
   products: [
     { title: 'Blue Structure', caption: 'Фактурная свеча в холодных синих оттенках.', image: '/images/blue-cube.png' },

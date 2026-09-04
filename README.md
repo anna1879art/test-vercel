@@ -1,19 +1,28 @@
-# Candle Card Test
+# Candle Card Test — public-repo / Vercel-env version
 
-Минимальный Next.js тестовый сайт-визитка для проверки инфраструктуры.
+Минимальный Next.js тестовый сайт-визитка для проверки GitHub → Vercel.
 
-## Что внутри
+## Что изменилось
 
-- `/` — публичная одностраничная витрина со всеми 4 приложенными изображениями.
-- `/admin/` — тестовая frontend-only админка.
-- Login: `admin`
-- Password: `admin`
-- `output: 'export'` — `npm run build` создаёт папку `out/` с полностью статическими файлами.
-- `deployment-examples/namecheap-ftp.yml` — пример GitHub Actions для FTP upload на Namecheap.
+Репозиторий теперь можно держать **public**: логин и пароль `/admin` больше не захардкожены в frontend-коде.
 
-> ВАЖНО: `admin/admin` — только демонстрация. Это не настоящая безопасность.
+- `/` — публичная одностраничная витрина.
+- `/admin` — тестовая админка.
+- `/api/admin/login` — маленький server-side endpoint Vercel, который проверяет Environment Variables.
+- пароль не отправляется в JS bundle и не хранится в GitHub.
+- после успешного входа ставится `HttpOnly` cookie.
+- содержимое витрины пока по-прежнему сохраняется только в `localStorage` браузера.
 
-## 1. Запустить локально
+## 1. Локальный запуск
+
+Создай `.env.local`:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin
+```
+
+Затем:
 
 ```bash
 npm install
@@ -23,68 +32,66 @@ npm run dev
 Открыть:
 
 - http://localhost:3000/
-- http://localhost:3000/admin/
+- http://localhost:3000/admin
+- http://localhost:3000/admin/ (also accepted)
 
-## 2. Проверить статическую сборку
+## 2. Vercel
 
-```bash
-npm run build
-```
+В Vercel открой:
 
-После этого папка `out/` содержит обычные HTML/CSS/JS/images, которые можно залить на обычный shared hosting.
+`Project → Settings → Environment Variables`
 
-## 3. GitHub → Vercel
-
-1. Создай пустой GitHub repository.
-2. Распакуй этот ZIP и push всё содержимое в `main`.
-3. В Vercel: **Add New → Project → Import Git Repository**.
-4. Framework Vercel определит как Next.js автоматически.
-5. Нажми Deploy.
-6. Получишь URL вида `https://<project>.vercel.app/` и `/admin/`.
-
-При каждом push в GitHub Vercel будет делать новый deployment.
-
-## 4. GitHub → Namecheap
-
-Сначала локально `npm run build`: результат будет в `out/`.
-
-Для автоматического deployment:
-
-1. Создай FTP account в cPanel/Namecheap.
-2. В GitHub repository добавь secrets:
-   - `FTP_SERVER`
-   - `FTP_USERNAME`
-   - `FTP_PASSWORD`
-3. Скопируй `deployment-examples/namecheap-ftp.yml` в:
-   `.github/workflows/deploy-namecheap.yml`
-4. Commit + push.
-
-После push GitHub Actions выполнит:
-
-`GitHub → npm build → out/ → FTP → Namecheap public_html/`
-
-## 5. Что делает тестовая /admin
-
-Админка сохраняет изменения только в `localStorage` браузера.
-
-То есть она позволяет проверить:
-
-`/admin → login → edit → Save → открыть / и увидеть изменение`
-
-если обе страницы открыты на одном origin.
-
-Она НЕ делает:
-
-`Vercel /admin → GitHub commit → GitHub Actions → Namecheap`.
-
-Для этого уже нужна server-side функция/API (например Vercel Function), потому что GitHub token нельзя безопасно держать в браузере.
-
-## Архитектура этого теста
+Добавь:
 
 ```text
-GitHub
-  ├── Vercel auto-deploy → сайт + /admin
-  └── GitHub Actions → static build → FTP → Namecheap
-
-/admin в этом ZIP — только frontend demo, без backend.
+ADMIN_USERNAME = admin
+ADMIN_PASSWORD = admin
 ```
+
+Отметь нужные environments (для теста можно Production + Preview + Development), сохрани и сделай **Redeploy**.
+
+После этого `/admin` использует значения именно из Vercel.
+
+## 3. Public GitHub repository
+
+В repository нет реального пароля — только `.env.example` с примером. `.env.local` игнорируется Git.
+
+Не называй переменные `NEXT_PUBLIC_ADMIN_PASSWORD`: всё с префиксом `NEXT_PUBLIC_` попадает в браузер и перестаёт быть секретом.
+
+## 4. Важное отличие от первой версии
+
+Первая версия была `output: 'export'` и могла целиком уехать на обычный Namecheap static hosting.
+
+Эта версия использует server-side login endpoint, поэтому весь проект уже нельзя просто экспортировать в `out/` как полностью статический сайт.
+
+Это сознательно: **секретный Vercel ENV и полностью статический `/admin` несовместимы**. Если секрет проверяет браузер, секрет можно извлечь из браузера.
+
+Когда захочешь повторить исходную архитектуру `Vercel admin → GitHub → Namecheap public site`, следующий шаг — оставить `/admin` на Vercel, а для Namecheap собирать отдельно только публичную часть сайта.
+
+## Текущая архитектура
+
+```text
+Public GitHub repo
+      ↓
+    Vercel
+      ├── /              public site
+      ├── /admin         admin UI
+      └── /api/admin/*   server-side auth
+               ↓
+      ADMIN_USERNAME / ADMIN_PASSWORD
+      (Vercel Environment Variables)
+```
+
+
+## Если локально ERR_TOO_MANY_REDIRECTS на /admin/
+
+В этой версии включён `skipTrailingSlashRedirect: true`, поэтому Next.js не должен гонять `/admin` и `/admin/` друг в друга.
+
+Также убедись, что локально существует `.env.local`:
+
+```env
+ADMIN_USERNAME=admin
+ADMIN_PASSWORD=admin
+```
+
+После изменения `.env.local` или `next.config.mjs` полностью перезапусти `npm run dev`.
