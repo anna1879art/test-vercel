@@ -1,97 +1,55 @@
-# Candle Card Test — public-repo / Vercel-env version
+# Candle Card — GitHub-backed admin
 
-Минимальный Next.js тестовый сайт-визитка для проверки GitHub → Vercel.
+This Next.js demo uses the repository as its content store. The public page renders the committed [`data/site.json`](data/site.json); it does not use `localStorage` or a database.
 
-## Что изменилось
+## Required environment variables
 
-Репозиторий теперь можно держать **public**: логин и пароль `/admin` больше не захардкожены в frontend-коде.
-
-- `/` — публичная одностраничная витрина.
-- `/admin` — тестовая админка.
-- `/api/admin/login` — маленький server-side endpoint Vercel, который проверяет Environment Variables.
-- пароль не отправляется в JS bundle и не хранится в GitHub.
-- после успешного входа ставится `HttpOnly` cookie.
-- содержимое витрины пока по-прежнему сохраняется только в `localStorage` браузера.
-
-## 1. Локальный запуск
-
-Создай `.env.local`:
+Create `.env.local` for local development (use real values locally, never commit this file):
 
 ```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin
+ADMIN_USERNAME=your-admin-name
+ADMIN_PASSWORD=your-strong-password
+GITHUB_TOKEN=github-token-with-repository-contents-write-access
+GITHUB_OWNER=your-github-owner
+GITHUB_REPO=your-repository-name
+GITHUB_BRANCH=main
+
+# Optional; defaults to data/site.json
+GITHUB_SITE_DATA_PATH=data/site.json
 ```
 
-Затем:
+`GITHUB_TOKEN` must be able to read repository contents and create commits/update the configured branch. For a fine-grained personal access token, grant access only to this repository and use the minimum required Contents read/write permission. Branch protection rules must allow the token identity to update the target branch.
+
+Run locally:
 
 ```bash
 npm install
 npm run dev
 ```
 
-Открыть:
+Open `http://localhost:3000/admin` and sign in.
 
-- http://localhost:3000/
-- http://localhost:3000/admin
-- http://localhost:3000/admin/ (also accepted)
+## Vercel setup
 
-## 2. Vercel
+In **Vercel → Project → Settings → Environment Variables**, add all required variables above for the environments that need the admin (normally Production, and optionally Preview/Development). Redeploy after changing environment variables.
 
-В Vercel открой:
+Connect the Vercel project to the same GitHub repository and branch. A commit pushed by the admin will then trigger the normal Vercel Git deployment once.
 
-`Project → Settings → Environment Variables`
+## Save flow
 
-Добавь:
+1. The authenticated admin loads the latest `data/site.json` and its Git blob SHA from GitHub through the server API.
+2. Every form edit stays only in React draft state. Input changes, blur events, image-path edits, and discard actions make no GitHub calls.
+3. **Save changes** sends the complete desired model and the loaded blob SHA to `POST /api/admin/save`.
+4. The server revalidates the session and complete model, then checks that the GitHub blob SHA is still current.
+5. The Git Data API creates a blob, one tree, one commit, and updates the branch ref once.
 
-```text
-ADMIN_USERNAME = admin
-ADMIN_PASSWORD = admin
-```
+Therefore, **one Save creates one Git commit**, containing the complete content update, and triggers at most one Vercel deployment. If another commit changed the content first, the API returns `409 Conflict`; refresh the editor before retrying so newer work is not overwritten.
 
-Отметь нужные environments (для теста можно Production + Preview + Development), сохрани и сделай **Redeploy**.
+The current demo edits existing image paths/URLs; it does not provide file uploads. If uploads are added later, their blobs must be included in the same Git tree and commit rather than using repeated Contents API updates.
 
-После этого `/admin` использует значения именно из Vercel.
+## Security
 
-## 3. Public GitHub repository
-
-В repository нет реального пароля — только `.env.example` с примером. `.env.local` игнорируется Git.
-
-Не называй переменные `NEXT_PUBLIC_ADMIN_PASSWORD`: всё с префиксом `NEXT_PUBLIC_` попадает в браузер и перестаёт быть секретом.
-
-## 4. Важное отличие от первой версии
-
-Первая версия была `output: 'export'` и могла целиком уехать на обычный Namecheap static hosting.
-
-Эта версия использует server-side login endpoint, поэтому весь проект уже нельзя просто экспортировать в `out/` как полностью статический сайт.
-
-Это сознательно: **секретный Vercel ENV и полностью статический `/admin` несовместимы**. Если секрет проверяет браузер, секрет можно извлечь из браузера.
-
-Когда захочешь повторить исходную архитектуру `Vercel admin → GitHub → Namecheap public site`, следующий шаг — оставить `/admin` на Vercel, а для Namecheap собирать отдельно только публичную часть сайта.
-
-## Текущая архитектура
-
-```text
-Public GitHub repo
-      ↓
-    Vercel
-      ├── /              public site
-      ├── /admin         admin UI
-      └── /api/admin/*   server-side auth
-               ↓
-      ADMIN_USERNAME / ADMIN_PASSWORD
-      (Vercel Environment Variables)
-```
-
-
-## Если локально ERR_TOO_MANY_REDIRECTS на /admin/
-
-В этой версии включён `skipTrailingSlashRedirect: true`, поэтому Next.js не должен гонять `/admin` и `/admin/` друг в друга.
-
-Также убедись, что локально существует `.env.local`:
-
-```env
-ADMIN_USERNAME=admin
-ADMIN_PASSWORD=admin
-```
-
-После изменения `.env.local` или `next.config.mjs` полностью перезапусти `npm run dev`.
+- Authentication and GitHub authorization are independently checked by server routes using an `HttpOnly`, `SameSite=Strict` session cookie.
+- `ADMIN_USERNAME`, `ADMIN_PASSWORD`, and all GitHub configuration are server-only. Never prefix secrets with `NEXT_PUBLIC_`.
+- Never put a GitHub token in browser code, log it, commit `.env.local`, or commit any token/password to Git.
+- Rotate a credential immediately if it is accidentally exposed.
