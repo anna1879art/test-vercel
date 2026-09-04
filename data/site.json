@@ -1,11 +1,31 @@
 {
-  "siteTitle": "Anna Candle Studio",
+  "siteTitle": "Anna Candle",
   "heroTitle": "Свечи как маленькие арт-объекты",
   "heroDescription": "Тестовая одностраничная визитка для проверки GitHub → Vercel → deployment.",
   "sections": [
-    { "id": "blue-structure", "title": "Blue Structure", "description": "Фактурная свеча в холодных синих оттенках.", "image": "/images/blue-cube.png" },
-    { "id": "citrus-collection", "title": "Citrus Collection", "description": "Яркая композиция с фруктовым настроением.", "image": "/images/orange-set.png" },
-    { "id": "crystal-night", "title": "Crystal Night", "description": "Тёмная декоративная чаша с мягким свечением.", "image": "/images/dark-bowl.png" },
-    { "id": "sushi-collection", "title": "Sushi Collection", "description": "Игровая коллекция декоративных свечей.", "image": "/images/sushi-set.png" }
+    {
+      "id": "blue-structure",
+      "title": "Blue Structure",
+      "description": "Фактурная свеча в холодных синих оттенках.",
+      "image": "/images/blue-cube.png"
+    },
+    {
+      "id": "citrus-collection",
+      "title": "Citrus Collection",
+      "description": "Яркая композиция с фруктовым настроением.",
+      "image": "/images/orange-set.png"
+    },
+    {
+      "id": "crystal-night",
+      "title": "Crystal Night",
+      "description": "Тёмная декоративная чаша с мягким свечением.",
+      "image": "/images/dark-bowl.png"
+    },
+    {
+      "id": "sushi-collection",
+      "title": "Sushi Collection",
+      "description": "Игровая коллекция декоративных свечей.",
+      "image": "/images/sushi-set.png"
+    }
   ]
 }
